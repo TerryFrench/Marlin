@@ -926,7 +926,7 @@
  *
  * Specify a Probe position as { X, Y, Z }
  */
-#define NOZZLE_TO_PROBE_OFFSET { 10, 10, 0 }
+#define NOZZLE_TO_PROBE_OFFSET { -40, -10, -1.65 }
 
 // Certain types of probes need to stay away from edges
 #define MIN_PROBE_EDGE 10
@@ -1168,16 +1168,16 @@
  *   With an LCD controller the process is guided step-by-step.
  */
 //#define AUTO_BED_LEVELING_3POINT
-#define AUTO_BED_LEVELING_LINEAR
+//#define AUTO_BED_LEVELING_LINEAR
 //#define AUTO_BED_LEVELING_BILINEAR
-//#define AUTO_BED_LEVELING_UBL
+#define AUTO_BED_LEVELING_UBL
 //#define MESH_BED_LEVELING
 
 /**
  * Normally G28 leaves leveling disabled on completion. Enable
  * this option to have G28 restore the prior leveling state.
  */
-//#define RESTORE_LEVELING_AFTER_G28
+#define RESTORE_LEVELING_AFTER_G28
 
 /**
  * Enable detailed logging of G28, G29, M48, etc.
@@ -1649,7 +1649,7 @@
  * just remove some extraneous menu items to recover space.
  */
 //#define NO_LCD_MENUS
-//#define SLIM_LCD_MENUS
+#define SLIM_LCD_MENUS
 
 //
 // ENCODER SETTINGS
