@@ -926,7 +926,7 @@
  *
  * Specify a Probe position as { X, Y, Z }
  */
-#define NOZZLE_TO_PROBE_OFFSET { -40, -10, -1.65 }
+#define NOZZLE_TO_PROBE_OFFSET { -40, -10, -0.0 }
 
 // Certain types of probes need to stay away from edges
 #define MIN_PROBE_EDGE 10
