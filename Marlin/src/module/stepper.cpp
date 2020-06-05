@@ -81,6 +81,8 @@
 
 Stepper stepper; // Singleton
 
+#define BABYSTEPPING_EXTRA_DIR_WAIT
+
 #if HAS_MOTOR_CURRENT_PWM
   bool Stepper::initialized; // = false
 #endif
@@ -128,7 +130,7 @@ Stepper stepper; // Singleton
 #endif
 
 #if ENABLED(POWER_LOSS_RECOVERY)
-  #include "../feature/power_loss_recovery.h"
+  #include "../feature/powerloss.h"
 #endif
 
 // public:
@@ -1367,8 +1369,8 @@ void Stepper::isr() {
     #endif
 
     #if ENABLED(INTEGRATED_BABYSTEPPING)
-      const bool do_babystep = (nextBabystepISR == 0);              // 0 = Do Babystepping (XY)Z pulses
-      if (do_babystep) nextBabystepISR = babystepping_isr();
+      const bool is_babystep = (nextBabystepISR == 0);              // 0 = Do Babystepping (XY)Z pulses
+      if (is_babystep) nextBabystepISR = babystepping_isr();
     #endif
 
     // ^== Time critical. NOTHING besides pulse generation should be above here!!!
@@ -1376,7 +1378,7 @@ void Stepper::isr() {
     if (!nextMainISR) nextMainISR = block_phase_isr();  // Manage acc/deceleration, get next block
 
     #if ENABLED(INTEGRATED_BABYSTEPPING)
-      if (do_babystep)                                  // Avoid ANY stepping too soon after baby-stepping
+      if (is_babystep)                                  // Avoid ANY stepping too soon after baby-stepping
         NOLESS(nextMainISR, (BABYSTEP_TICKS) / 8);      // FULL STOP for 125µs after a baby-step
 
       if (nextBabystepISR != BABYSTEP_NEVER)            // Avoid baby-stepping too close to axis Stepping
@@ -2114,7 +2116,7 @@ void Stepper::init() {
   #if MB(ALLIGATOR)
     const float motor_current[] = MOTOR_CURRENT;
     unsigned int digipot_motor = 0;
-    for (uint8_t i = 0; i < 3 + EXTRUDERS; i++) {
+    LOOP_L_N(i, 3 + EXTRUDERS) {
       digipot_motor = 255 * (motor_current[i] / 2.5);
       dac084s085::setValue(i, digipot_motor);
     }
@@ -2446,6 +2448,19 @@ int32_t Stepper::triggered_position(const AxisEnum axis) {
   return v;
 }
 
+void Stepper::report_a_position(const xyz_long_t &pos) {
+  #if CORE_IS_XY || CORE_IS_XZ || ENABLED(DELTA) || IS_SCARA
+    SERIAL_ECHOPAIR(STR_COUNT_A, pos.x, " B:", pos.y);
+  #else
+    SERIAL_ECHOPAIR_P(PSTR(STR_COUNT_X), pos.x, SP_Y_LBL, pos.y);
+  #endif
+  #if CORE_IS_XZ || CORE_IS_YZ || ENABLED(DELTA)
+    SERIAL_ECHOLNPAIR(" C:", pos.z);
+  #else
+    SERIAL_ECHOLNPAIR_P(SP_Z_LBL, pos.z);
+  #endif
+}
+
 void Stepper::report_positions() {
 
   #ifdef __AVR__
@@ -2459,16 +2474,7 @@ void Stepper::report_positions() {
     if (was_enabled) wake_up();
   #endif
 
-  #if CORE_IS_XY || CORE_IS_XZ || ENABLED(DELTA) || IS_SCARA
-    SERIAL_ECHOPAIR(MSG_COUNT_A, pos.x, " B:", pos.y);
-  #else
-    SERIAL_ECHOPAIR(MSG_COUNT_X, pos.x, " Y:", pos.y);
-  #endif
-  #if CORE_IS_XZ || CORE_IS_YZ || ENABLED(DELTA)
-    SERIAL_ECHOLNPAIR(" C:", pos.z);
-  #else
-    SERIAL_ECHOLNPAIR(" Z:", pos.z);
-  #endif
+  report_a_position(pos);
 }
 
 #if ENABLED(BABYSTEPPING)
@@ -2507,6 +2513,14 @@ void Stepper::report_positions() {
     #endif
   #endif
 
+  #if ENABLED(BABYSTEPPING_EXTRA_DIR_WAIT)
+    #define EXTRA_DIR_WAIT_BEFORE DIR_WAIT_BEFORE
+    #define EXTRA_DIR_WAIT_AFTER  DIR_WAIT_AFTER
+  #else
+    #define EXTRA_DIR_WAIT_BEFORE()
+    #define EXTRA_DIR_WAIT_AFTER()
+  #endif
+
   #if DISABLED(DELTA)
 
     #define BABYSTEP_AXIS(AXIS, INV, DIR) do{           \
@@ -2519,9 +2533,9 @@ void Stepper::report_positions() {
       _APPLY_STEP(AXIS, !_INVERT_STEP_PIN(AXIS), true); \
       _PULSE_WAIT();                                    \
       _APPLY_STEP(AXIS, _INVERT_STEP_PIN(AXIS), true);  \
-      DIR_WAIT_BEFORE();                                \
+      EXTRA_DIR_WAIT_BEFORE();                          \
       _APPLY_DIR(AXIS, old_dir);                        \
-      DIR_WAIT_AFTER();                                 \
+      EXTRA_DIR_WAIT_AFTER();                           \
     }while(0)
 
   #elif IS_CORE
@@ -2539,9 +2553,9 @@ void Stepper::report_positions() {
       _PULSE_WAIT();                                            \
       _APPLY_STEP(A, _INVERT_STEP_PIN(A), true);                \
       _APPLY_STEP(B, _INVERT_STEP_PIN(B), true);                \
-      DIR_WAIT_BEFORE();                                        \
+      EXTRA_DIR_WAIT_BEFORE();                                  \
       _APPLY_DIR(A, old_dir.a); _APPLY_DIR(B, old_dir.b);       \
-      DIR_WAIT_AFTER();                                         \
+      EXTRA_DIR_WAIT_AFTER();                                   \
     }while(0)
 
   #endif
@@ -2620,13 +2634,13 @@ void Stepper::report_positions() {
           Z_STEP_WRITE(INVERT_Z_STEP_PIN);
 
           // Restore direction bits
-          DIR_WAIT_BEFORE();
+          EXTRA_DIR_WAIT_BEFORE();
 
           X_DIR_WRITE(old_dir.x);
           Y_DIR_WRITE(old_dir.y);
           Z_DIR_WRITE(old_dir.z);
 
-          DIR_WAIT_AFTER();
+          EXTRA_DIR_WAIT_AFTER();
 
         #endif
 
@@ -2742,7 +2756,7 @@ void Stepper::report_positions() {
         SPI.begin();
         SET_OUTPUT(DIGIPOTSS_PIN);
 
-        for (uint8_t i = 0; i < COUNT(digipot_motor_current); i++) {
+        LOOP_L_N(i, COUNT(digipot_motor_current)) {
           //digitalPotWrite(digipot_ch[i], digipot_motor_current[i]);
           digipot_current(i, digipot_motor_current[i]);
         }
